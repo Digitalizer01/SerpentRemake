@@ -65,12 +65,22 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Scripts\Meal.cs" />
+    <Compile Include="Assets\Scripts\Panels\GameSelectInputPanel.cs" />
+    <Compile Include="Assets\Scripts\Panels\MenuPanel.cs" />
+    <Compile Include="Assets\Scripts\Managers\AudioManager.cs" />
+    <Compile Include="Assets\Scripts\UIBehavior.cs" />
     <Compile Include="Assets\Scripts\Snake.cs" />
+    <Compile Include="Assets\Scripts\Panels\PanelManager.cs" />
+    <Compile Include="Assets\Scripts\Panels\GameOverMenuPanelScript.cs" />
     <Compile Include="Assets\Scripts\SnakeHeadDirection.cs" />
-    <Compile Include="Assets\Scripts\MenuController.cs" />
+    <Compile Include="Assets\Scripts\Managers\GamepadSelectionSound.cs" />
+    <Compile Include="Assets\Scripts\Panels\MainMenuPanelScript.cs" />
+    <Compile Include="Assets\Scripts\Panels\GameModePanelScript.cs" />
+    <Compile Include="Assets\MenuNavigationInitializer.cs" />
     <Compile Include="Assets\Scripts\GameBehavior.cs" />
     <Compile Include="Assets\Scripts\GameResultInfo.cs" />
     <Compile Include="Assets\Scripts\MealType.cs" />
+    <Compile Include="Assets\Scripts\Panels\ConfigurationPanelScript.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\TextMesh Pro\Shaders\TMPro.cginc" />

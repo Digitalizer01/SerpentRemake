@@ -9,21 +9,29 @@ using UnityEngine.UI;
 public class GameBehavior : MonoBehaviour
 {
     [Header("UI & Grid")]
+    public int time;
     public GameObject panel;
     public Image imagePrefab;
     public int gridSize = 10;
 
     [Header("Game Settings")]
     private const int dangerDuration = 7;
-
+    public float gameSpeed = 0.1f;
+    public float speedEffectTime = 10f;
+    
     private Dictionary<string, Sprite> spriteLibrary = new();
     private Dictionary<Tuple<int, int>, Meal> mealPositions = new();
     private Dictionary<Tuple<int, int>, Vector2> gridToUIPosition = new();
+    private Dictionary<Snake, Coroutine> speedResetCoroutines = new();
 
     private Snake playerSnake;
     private Snake enemySnake;
 
     private bool gameRunning = true;
+
+    private float elapsedTime = 0f;
+
+    public UIBehavior uIBehavior;
 
     #region Unity Methods
 
@@ -33,8 +41,45 @@ public class GameBehavior : MonoBehaviour
         GenerateGrid();
         SpawnPlayerSnake();
         SpawnEnemySnake();
+        StartCoroutine(StartRoundRoutine());
+    }
+
+    void Update()
+    {
+        uIBehavior.RefreshUI(playerSnake, enemySnake);
+    }
+
+    private IEnumerator TimerRoutine()
+    {
+        while (gameRunning)
+        {
+            time = Mathf.FloorToInt(elapsedTime);
+            yield return new WaitForSeconds(1f);
+            elapsedTime += 1f;
+        }
+    }
+
+    private IEnumerator StartRoundRoutine()
+    {
+        AudioManager.Instance.StopMusic();
+
+        AudioClip startClip = Resources.Load<AudioClip>("Sounds/round_start_song");
+        if (startClip != null)
+        {
+            AudioManager.Instance.PlayMusic(startClip);
+            yield return new WaitForSeconds(startClip.length);
+        }
+
         StartCoroutine(PlayerSnakeMovement());
         StartCoroutine(EnemySnakeMovement());
+
+        AudioClip loopClip = Resources.Load<AudioClip>("Sounds/round_song");
+        if (loopClip != null)
+        {
+            AudioManager.Instance.PlayMusic(loopClip);
+        }
+
+        StartCoroutine(TimerRoutine());
     }
 
     #endregion
@@ -43,7 +88,7 @@ public class GameBehavior : MonoBehaviour
 
     private IEnumerator PlayerSnakeMovement()
     {
-        float cellSize = panel.GetComponent<RectTransform>().sizeDelta.x / gridSize;
+        float cellSize = panel.GetComponent<RectTransform>().rect.width / gridSize;
 
         while (gameRunning)
         {
@@ -72,11 +117,14 @@ public class GameBehavior : MonoBehaviour
 
     private IEnumerator EnemySnakeMovement()
     {
-        float cellSize = panel.GetComponent<RectTransform>().sizeDelta.x / gridSize;
+        float cellSize = panel.GetComponent<RectTransform>().rect.width / gridSize;
 
         while (gameRunning)
         {
-            SnakeHeadDirection inputDirection = GetRandomDirection(enemySnake.CurrentHeadDirection);
+            var enemyPos = enemySnake.Tuples[enemySnake.ListOfParts[0]];
+            var playerPos = playerSnake.Tuples[playerSnake.ListOfParts[0]];
+            SnakeHeadDirection inputDirection = GetChasingDirection(enemySnake.CurrentHeadDirection, enemyPos, playerPos);
+
             Tuple<int, int> nextPosition = GetNextPosition(enemySnake, inputDirection);
             enemySnake.NextPlannedPosition = nextPosition;
 
@@ -99,6 +147,55 @@ public class GameBehavior : MonoBehaviour
         }
     }
 
+    private SnakeHeadDirection GetChasingDirection(SnakeHeadDirection currentDirection, Tuple<int, int> enemyPos, Tuple<int, int> playerPos)
+    {
+        List<SnakeHeadDirection> possibleDirections = new();
+
+        int dx = playerPos.Item1 - enemyPos.Item1;
+        int dy = playerPos.Item2 - enemyPos.Item2;
+
+        // Priorizar movimiento en el eje mayor
+        if (Mathf.Abs(dx) > Mathf.Abs(dy))
+        {
+            if (dx > 0 && currentDirection != SnakeHeadDirection.Left)
+                possibleDirections.Add(SnakeHeadDirection.Right);
+            else if (dx < 0 && currentDirection != SnakeHeadDirection.Right)
+                possibleDirections.Add(SnakeHeadDirection.Left);
+
+            if (dy > 0 && currentDirection != SnakeHeadDirection.Bottom)
+                possibleDirections.Add(SnakeHeadDirection.Top);
+            else if (dy < 0 && currentDirection != SnakeHeadDirection.Top)
+                possibleDirections.Add(SnakeHeadDirection.Bottom);
+        }
+        else
+        {
+            if (dy > 0 && currentDirection != SnakeHeadDirection.Bottom)
+                possibleDirections.Add(SnakeHeadDirection.Top);
+            else if (dy < 0 && currentDirection != SnakeHeadDirection.Top)
+                possibleDirections.Add(SnakeHeadDirection.Bottom);
+
+            if (dx > 0 && currentDirection != SnakeHeadDirection.Left)
+                possibleDirections.Add(SnakeHeadDirection.Right);
+            else if (dx < 0 && currentDirection != SnakeHeadDirection.Right)
+                possibleDirections.Add(SnakeHeadDirection.Left);
+        }
+
+        // Si no se pudo mover en dirección ideal, tomar una aleatoria válida
+        if (possibleDirections.Count == 0)
+        {
+            foreach (SnakeHeadDirection dir in Enum.GetValues(typeof(SnakeHeadDirection)))
+            {
+                if (dir == SnakeHeadDirection.Top && currentDirection == SnakeHeadDirection.Bottom) continue;
+                if (dir == SnakeHeadDirection.Bottom && currentDirection == SnakeHeadDirection.Top) continue;
+                if (dir == SnakeHeadDirection.Left && currentDirection == SnakeHeadDirection.Right) continue;
+                if (dir == SnakeHeadDirection.Right && currentDirection == SnakeHeadDirection.Left) continue;
+                possibleDirections.Add(dir);
+            }
+        }
+
+        return possibleDirections[UnityEngine.Random.Range(0, possibleDirections.Count)];
+    }
+
     private void UpdateSnakeDirection(Snake snake, SnakeHeadDirection newDirection)
     {
         float rotationZ = newDirection switch
@@ -117,17 +214,27 @@ public class GameBehavior : MonoBehaviour
 
     private SnakeHeadDirection GetInputDirection(SnakeHeadDirection currentDirection)
     {
-        if (Input.GetKey(KeyCode.UpArrow) && currentDirection != SnakeHeadDirection.Bottom) return SnakeHeadDirection.Top;
-        if (Input.GetKey(KeyCode.DownArrow) && currentDirection != SnakeHeadDirection.Top) return SnakeHeadDirection.Bottom;
-        if (Input.GetKey(KeyCode.RightArrow) && currentDirection != SnakeHeadDirection.Left) return SnakeHeadDirection.Right;
-        if (Input.GetKey(KeyCode.LeftArrow) && currentDirection != SnakeHeadDirection.Right) return SnakeHeadDirection.Left;
+        float dpadX = Input.GetAxisRaw("DPad1Horizontal");
+        float dpadY = Input.GetAxisRaw("DPad1Vertical");
+
+        if ((Input.GetKey(KeyCode.UpArrow) || dpadY > 0) && currentDirection != SnakeHeadDirection.Bottom)
+            return SnakeHeadDirection.Top;
+
+        if ((Input.GetKey(KeyCode.DownArrow) || dpadY < 0) && currentDirection != SnakeHeadDirection.Top)
+            return SnakeHeadDirection.Bottom;
+
+        if ((Input.GetKey(KeyCode.RightArrow) || dpadX > 0) && currentDirection != SnakeHeadDirection.Left)
+            return SnakeHeadDirection.Right;
+
+        if ((Input.GetKey(KeyCode.LeftArrow) || dpadX < 0) && currentDirection != SnakeHeadDirection.Right)
+            return SnakeHeadDirection.Left;
 
         return currentDirection;
     }
 
     private SnakeHeadDirection GetRandomDirection(SnakeHeadDirection currentDirection)
     {
-        int randomNumber = UnityEngine.Random.Range(1, 4);
+        int randomNumber = UnityEngine.Random.Range(1, 5);
 
         if (randomNumber == 1 && currentDirection != SnakeHeadDirection.Bottom) return SnakeHeadDirection.Top;
         if (randomNumber == 2 && currentDirection != SnakeHeadDirection.Top) return SnakeHeadDirection.Bottom;
@@ -171,11 +278,19 @@ public class GameBehavior : MonoBehaviour
                     ? gridToUIPosition[targetPosition]
                     : gridToUIPosition[snake.Tuples[previousParts[i - 1]]];
 
-                part.transform.position = Vector2.MoveTowards(part.transform.position, targetPos, 0.5f);
+                RectTransform rt = part.GetComponent<RectTransform>();
+                rt.anchoredPosition = Vector2.MoveTowards(rt.anchoredPosition, targetPos, 0.5f);
 
                 if (frame == 30 && i == 0 && consumedMeal)
                 {
                     Debug.Log($"Consumed meal: {mealType}");
+
+                    AudioClip obtainClip = Resources.Load<AudioClip>("Sounds/item_obtained_sound");
+                    if (obtainClip != null)
+                    {
+                        AudioManager.Instance.PlaySFX(obtainClip);
+                    }
+                    
                     meal.Image.gameObject.SetActive(false);
                     mealPositions.Clear();
                 }
@@ -186,7 +301,7 @@ public class GameBehavior : MonoBehaviour
                     newPart.GetComponent<RectTransform>().sizeDelta = new Vector2(cellSize * 0.95f, cellSize * 0.95f);
                     newPart.sprite = spriteLibrary["Body"];
                     var pos = snake.Tuples[previousParts.Last()];
-                    newPart.GetComponent<RectTransform>().position = gridToUIPosition[pos];
+                    newPart.GetComponent<RectTransform>().anchoredPosition = gridToUIPosition[pos];
                 }
 
                 if (frame == 99)
@@ -213,22 +328,51 @@ public class GameBehavior : MonoBehaviour
                 Debug.Log("Normal Effect");
                 AddSnakePart(snake, newPart, tail, parts, tuples);
                 break;
+
             case MealType.Blue:
                 Debug.Log("Blue Effect - Shorten snake");
                 if (snake.ListOfParts.Count > 2)
                     RemoveTailPart(snake, parts, tuples);
                 break;
+
             case MealType.Yellow:
                 Debug.Log("Yellow Effect - Slow down");
                 if (snake.currentSpeed != Snake.SpeedState.Slow)
-                    snake.currentSpeed--;
+                {
+                    snake.currentSpeed = Snake.SpeedState.Slow;
+                    ResetSpeedAfterDelay(snake);
+                }
                 break;
+
             case MealType.Green:
                 Debug.Log("Green Effect - Speed up");
                 if (snake.currentSpeed != Snake.SpeedState.Fast)
-                    snake.currentSpeed++;
+                {
+                    snake.currentSpeed = Snake.SpeedState.Fast;
+                    ResetSpeedAfterDelay(snake);
+                }
                 break;
         }
+    }
+
+    private void ResetSpeedAfterDelay(Snake snake)
+    {
+        if (speedResetCoroutines.TryGetValue(snake, out var runningCoroutine))
+        {
+            StopCoroutine(runningCoroutine);
+        }
+
+        Coroutine coroutine = StartCoroutine(SpeedResetCountdown(snake));
+        speedResetCoroutines[snake] = coroutine;
+    }
+
+    private IEnumerator SpeedResetCountdown(Snake snake)
+    {
+        yield return new WaitForSeconds(speedEffectTime);
+        snake.currentSpeed = Snake.SpeedState.Normal;
+        Debug.Log("Speed reset to Normal.");
+
+        speedResetCoroutines.Remove(snake);
     }
 
     private void AddSnakePart(Snake snake, Image part, Image after, Dictionary<Tuple<int, int>, Image> parts, Dictionary<Image, Tuple<int, int>> tuples)
@@ -266,29 +410,41 @@ public class GameBehavior : MonoBehaviour
 
     private bool HandleCollision(Snake snake, Tuple<int, int> nextPos)
     {
-        bool isInvalid = nextPos.Item1 == 0 || nextPos.Item1 == gridSize - 1
-                    || nextPos.Item2 == 0 || nextPos.Item2 == gridSize - 1
-                    || playerSnake.PartsOfSnake.ContainsKey(nextPos) || enemySnake.PartsOfSnake.ContainsKey(nextPos);
+        bool isCollision = 
+            nextPos.Item1 <= 0 || nextPos.Item1 >= gridSize - 1 ||
+            nextPos.Item2 <= 0 || nextPos.Item2 >= gridSize - 1 ||
+            playerSnake.PartsOfSnake.ContainsKey(nextPos) || 
+            enemySnake.PartsOfSnake.ContainsKey(nextPos);
 
-        if (isInvalid)
+        if (isCollision)
         {
             if (!snake.isInDanger)
             {
                 snake.isInDanger = true;
                 snake.dangerCoroutine = StartCoroutine(DangerCountdown(snake));
+
+                AudioClip dangerClip = Resources.Load<AudioClip>("Sounds/danger_sound");
+                if (dangerClip != null)
+                    AudioManager.Instance.PlayLoopedSFX(dangerClip);
             }
 
             return false;
         }
-
-        if (snake.isInDanger)
+        else
         {
-            StopCoroutine(snake.dangerCoroutine);
-            SetSnakeVisibility(playerSnake, true);
-            snake.isInDanger = false;
-        }
+            if (snake.isInDanger)
+            {
+                if (snake.dangerCoroutine != null)
+                    StopCoroutine(snake.dangerCoroutine);
 
-        return true;
+                snake.isInDanger = false;
+                SetSnakeVisibility(snake, true);
+
+                AudioManager.Instance.StopLoopedSFX();
+            }
+
+            return true;
+        }
     }
 
     private IEnumerator DangerCountdown(Snake snake)
@@ -303,10 +459,9 @@ public class GameBehavior : MonoBehaviour
             timeLeft--;
         }
 
-        if(object.ReferenceEquals(snake, playerSnake))
-        {
+        SetSnakeVisibility(snake, true);
+        if (object.ReferenceEquals(snake, playerSnake))
             EndGame(false);
-        }
         else
         {
             EndGame(true);
@@ -315,10 +470,12 @@ public class GameBehavior : MonoBehaviour
 
     private void ToggleSnakeVisibility(Snake snake)
     {
+        if (!snake.isInDanger) return;
+
         foreach (var part in snake.ListOfParts)
         {
             var color = part.color;
-            color.a = color.a == 1f ? 0.3f : 1f;
+            color.a = (color.a == 1f) ? 0.3f : 1f;
             part.color = color;
         }
     }
@@ -335,9 +492,30 @@ public class GameBehavior : MonoBehaviour
 
     private void EndGame(bool win)
     {
+        StartCoroutine(EndGameRoutine(win));
+    }
+
+    private IEnumerator EndGameRoutine(bool win)
+    {
+        AudioManager.Instance.StopLoopedSFX();
+        AudioManager.Instance.StopMusic();
+
+        AudioClip deathClip = Resources.Load<AudioClip>("Sounds/death_sound");
+        if (deathClip != null)
+        {
+            AudioSource tempSource = gameObject.AddComponent<AudioSource>();
+            tempSource.clip = deathClip;
+            tempSource.volume = PlayerPrefs.GetFloat("MasterVolume", 1f);
+            tempSource.Play();
+
+            yield return new WaitForSeconds(deathClip.length);
+        }
+
         GameResultInfo.PlayerWon = win;
+        GameResultInfo.LogGameResult(win);
         SceneManager.LoadScene("GameOverMenu");
     }
+
 
     #endregion
 
@@ -352,10 +530,14 @@ public class GameBehavior : MonoBehaviour
 
     private void GenerateGrid()
     {
-        float width = panel.GetComponent<RectTransform>().sizeDelta.x;
-        float height = panel.GetComponent<RectTransform>().sizeDelta.y;
-        float cellSize = width / gridSize;
-        Vector2 origin = new Vector2(cellSize / 2, cellSize / 2);
+        float panelWidth = panel.GetComponent<RectTransform>().rect.width;
+        float panelHeight = panel.GetComponent<RectTransform>().rect.height;
+        float cellSize = Mathf.Min(panelWidth, panelHeight) / gridSize;
+
+        float gridWidth = cellSize * gridSize;
+        float gridHeight = cellSize * gridSize;
+
+        Vector2 origin = new Vector2(-gridWidth / 2 + cellSize / 2, -gridHeight / 2 + cellSize / 2);
 
         for (int y = 0; y < gridSize; y++)
         {
@@ -363,12 +545,13 @@ public class GameBehavior : MonoBehaviour
             {
                 var image = Instantiate(imagePrefab, panel.transform);
                 image.GetComponent<RectTransform>().sizeDelta = new Vector2(cellSize * 0.95f, cellSize * 0.95f);
+
                 image.color = (x == 0 || x == gridSize - 1 || y == 0 || y == gridSize - 1) ? Color.black : Color.white;
 
-                Vector2 position = origin + new Vector2(x * cellSize, y * cellSize);
-                image.GetComponent<RectTransform>().position = position;
+                Vector2 anchoredPos = origin + new Vector2(x * cellSize, y * cellSize);
+                image.GetComponent<RectTransform>().anchoredPosition = anchoredPos;
 
-                gridToUIPosition[new Tuple<int, int>(x, y)] = position;
+                gridToUIPosition[new Tuple<int, int>(x, y)] = anchoredPos;
             }
         }
     }
@@ -376,13 +559,11 @@ public class GameBehavior : MonoBehaviour
     private void SpawnPlayerSnake()
     {
         playerSnake = new Snake();
-        float cellSize = panel.GetComponent<RectTransform>().sizeDelta.x / gridSize;
+        float cellSize = panel.GetComponent<RectTransform>().rect.width / gridSize;
 
-        //Tuple<int, int> headPos = GetRandomPosition();
         Tuple<int, int> headPos = new Tuple<int, int>(gridSize/2, 3);
         AddSnakePart(playerSnake, headPos, "Head");
 
-        //playerSnake.CurrentHeadDirection = GetRandomDirection();
         playerSnake.CurrentHeadDirection = SnakeHeadDirection.Top;
 
         for (int i = 0; i < 2; i++)
@@ -395,13 +576,11 @@ public class GameBehavior : MonoBehaviour
     private void SpawnEnemySnake()
     {
         enemySnake = new Snake();
-        float cellSize = panel.GetComponent<RectTransform>().sizeDelta.x / gridSize;
+        float cellSize = panel.GetComponent<RectTransform>().rect.width / gridSize;
 
-        //Tuple<int, int> headPos = GetRandomPosition();
         Tuple<int, int> headPos = new Tuple<int, int>(gridSize/2, gridSize-4);
         AddSnakePart(enemySnake, headPos, "HeadEnemy");
 
-        //playerSnake.CurrentHeadDirection = GetRandomDirection();
         enemySnake.CurrentHeadDirection = SnakeHeadDirection.Bottom;
 
         for (int i = 0; i < 2; i++)
@@ -416,7 +595,7 @@ public class GameBehavior : MonoBehaviour
         var image = Instantiate(imagePrefab, panel.transform);
         image.GetComponent<RectTransform>().sizeDelta = new Vector2(panel.GetComponent<RectTransform>().sizeDelta.x / gridSize * 0.95f, panel.GetComponent<RectTransform>().sizeDelta.x / gridSize * 0.95f);
         image.sprite = spriteLibrary[spriteName];
-        image.GetComponent<RectTransform>().position = gridToUIPosition[pos];
+        image.GetComponent<RectTransform>().anchoredPosition = gridToUIPosition[pos];
 
         snake.PartsOfSnake[pos] = image;
         snake.Tuples[image] = pos;
@@ -475,9 +654,14 @@ public class GameBehavior : MonoBehaviour
         float cellSize = panel.GetComponent<RectTransform>().sizeDelta.x / gridSize;
         mealImage.GetComponent<RectTransform>().sizeDelta = new Vector2(cellSize * 0.95f, cellSize * 0.95f);
         mealImage.sprite = spriteLibrary[spriteName];
-        mealImage.GetComponent<RectTransform>().position = gridToUIPosition[mealPos];
+        mealImage.GetComponent<RectTransform>().anchoredPosition = gridToUIPosition[mealPos];
 
         mealPositions.Add(mealPos, new Meal(type, mealImage));
+        AudioClip appearClip = Resources.Load<AudioClip>("Sounds/item_appear_sound");
+        if (appearClip != null)
+        {
+            AudioManager.Instance.PlaySFX(appearClip);
+        }
     }
 
     #endregion

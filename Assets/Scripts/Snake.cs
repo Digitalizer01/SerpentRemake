@@ -23,7 +23,7 @@ public class Snake : MonoBehaviour
 
     public readonly Dictionary<SpeedState, float> speedValues = new()
     {
-        { SpeedState.Slow, 0.015f },
+        { SpeedState.Slow, 0.008f },
         { SpeedState.Normal, 0.005f },
         { SpeedState.Fast, 0.001f }
     };
