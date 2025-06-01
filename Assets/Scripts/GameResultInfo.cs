@@ -6,6 +6,7 @@ public static class GameResultInfo
 {
     public static bool PlayerWon;
     public static int Time;
+    public static bool IsTwoPlayerMode;
 
     private static string logFilePath = Path.Combine(Application.persistentDataPath, "GameResults.txt");
 

@@ -1552,6 +1552,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Player1StatusText: {fileID: 2014265105}
   CPUStatusText: {fileID: 19130296}
+  Player2CPUText: {fileID: 923481933}
 --- !u!1 &2146736818
 GameObject:
   m_ObjectHideFlags: 0

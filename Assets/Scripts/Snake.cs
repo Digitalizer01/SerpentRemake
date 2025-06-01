@@ -19,7 +19,7 @@ public class Snake : MonoBehaviour
     public Tuple<int, int> NextPlannedPosition;
 
     public bool dangerInterrupted = false;
-
+    public bool IsPlayer;
 
     public readonly Dictionary<SpeedState, float> speedValues = new()
     {

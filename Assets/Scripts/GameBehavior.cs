@@ -71,7 +71,10 @@ public class GameBehavior : MonoBehaviour
         }
 
         StartCoroutine(PlayerSnakeMovement());
-        StartCoroutine(EnemySnakeMovement());
+        if (GameResultInfo.IsTwoPlayerMode)
+            StartCoroutine(Player2SnakeMovement());
+        else
+            StartCoroutine(EnemySnakeMovement());
 
         AudioClip loopClip = Resources.Load<AudioClip>("Sounds/round_song");
         if (loopClip != null)
@@ -114,6 +117,36 @@ public class GameBehavior : MonoBehaviour
             SpawnMealIfNoneExists();
         }
     }
+
+    private IEnumerator Player2SnakeMovement()
+    {
+        float cellSize = panel.GetComponent<RectTransform>().rect.width / gridSize;
+
+        while (gameRunning)
+        {
+            SnakeHeadDirection inputDirection = GetPlayer2InputDirection(enemySnake.CurrentHeadDirection);
+            Tuple<int, int> nextPosition = GetNextPosition(enemySnake, inputDirection);
+            enemySnake.NextPlannedPosition = nextPosition;
+
+            if (nextPosition.Equals(playerSnake.NextPlannedPosition))
+            {
+                yield return new WaitForSeconds(0.1f);
+                continue;
+            }
+
+            UpdateSnakeDirection(enemySnake, inputDirection);
+
+            if (!HandleCollision(enemySnake, nextPosition))
+            {
+                yield return new WaitForSeconds(0.1f);
+                continue;
+            }
+
+            yield return AnimateSnakeMovement(enemySnake, nextPosition, cellSize);
+            SpawnMealIfNoneExists();
+        }
+    }
+
 
     private IEnumerator EnemySnakeMovement()
     {
@@ -231,6 +264,26 @@ public class GameBehavior : MonoBehaviour
 
         return currentDirection;
     }
+    
+    private SnakeHeadDirection GetPlayer2InputDirection(SnakeHeadDirection currentDirection)
+    {
+        float dpadX = Input.GetAxisRaw("DPad2Horizontal");
+        float dpadY = Input.GetAxisRaw("DPad2Vertical");
+
+        if ((Input.GetKey(KeyCode.UpArrow) || dpadY > 0) && currentDirection != SnakeHeadDirection.Bottom)
+            return SnakeHeadDirection.Top;
+
+        if ((Input.GetKey(KeyCode.DownArrow) || dpadY < 0) && currentDirection != SnakeHeadDirection.Top)
+            return SnakeHeadDirection.Bottom;
+
+        if ((Input.GetKey(KeyCode.RightArrow) || dpadX > 0) && currentDirection != SnakeHeadDirection.Left)
+            return SnakeHeadDirection.Right;
+
+        if ((Input.GetKey(KeyCode.LeftArrow) || dpadX < 0) && currentDirection != SnakeHeadDirection.Right)
+            return SnakeHeadDirection.Left;
+
+        return currentDirection;
+    }
 
     private SnakeHeadDirection GetRandomDirection(SnakeHeadDirection currentDirection)
     {
@@ -299,7 +352,14 @@ public class GameBehavior : MonoBehaviour
                 {
                     newPart = Instantiate(imagePrefab, panel.transform);
                     newPart.GetComponent<RectTransform>().sizeDelta = new Vector2(cellSize * 0.95f, cellSize * 0.95f);
-                    newPart.sprite = spriteLibrary["Body"];
+                    if (snake.IsPlayer)
+                    {
+                        newPart.sprite = spriteLibrary["Body"];
+                    }
+                    else if (!snake.IsPlayer)
+                    {
+                        newPart.sprite = spriteLibrary["BodyEnemy"];
+                    }
                     var pos = snake.Tuples[previousParts.Last()];
                     newPart.GetComponent<RectTransform>().anchoredPosition = gridToUIPosition[pos];
                 }
@@ -559,6 +619,7 @@ public class GameBehavior : MonoBehaviour
     private void SpawnPlayerSnake()
     {
         playerSnake = new Snake();
+        playerSnake.IsPlayer = true;
         float cellSize = panel.GetComponent<RectTransform>().rect.width / gridSize;
 
         Tuple<int, int> headPos = new Tuple<int, int>(gridSize/2, 3);
@@ -576,6 +637,7 @@ public class GameBehavior : MonoBehaviour
     private void SpawnEnemySnake()
     {
         enemySnake = new Snake();
+        playerSnake.IsPlayer = false;
         float cellSize = panel.GetComponent<RectTransform>().rect.width / gridSize;
 
         Tuple<int, int> headPos = new Tuple<int, int>(gridSize/2, gridSize-4);
@@ -640,7 +702,7 @@ public class GameBehavior : MonoBehaviour
             mealPos = Tuple.Create(UnityEngine.Random.Range(1, gridSize - 1), UnityEngine.Random.Range(1, gridSize - 1));
         } while (playerSnake.PartsOfSnake.ContainsKey(mealPos));
 
-        MealType type = (MealType)UnityEngine.Random.Range(0, 4);
+        MealType type = (MealType)UnityEngine.Random.Range(0, 1);
         string spriteName = type switch
         {
             MealType.Normal => "apple",

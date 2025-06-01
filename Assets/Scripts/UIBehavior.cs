@@ -9,22 +9,32 @@ public class UIBehavior : MonoBehaviour
 
     public TMP_Text Player1StatusText;
     public TMP_Text CPUStatusText;
+    public TMP_Text Player2CPUText;
 
     public void RefreshUI(Snake snakePlayer, Snake snakeEnemy)
     {
-        switch(snakePlayer.currentSpeed)
+        if (GameResultInfo.IsTwoPlayerMode)
+        {
+            Player2CPUText.text = "Player 2";
+        }
+        else
+        {
+            Player2CPUText.text = "CPU";
+        }
+        
+        switch (snakePlayer.currentSpeed)
         {
             case Snake.SpeedState.Normal:
                 Player1StatusText.text = "Normal";
-            break;
+                break;
 
             case Snake.SpeedState.Fast:
                 Player1StatusText.text = "Fast";
-            break;
+                break;
 
             case Snake.SpeedState.Slow:
                 Player1StatusText.text = "Slow";
-            break;
+                break;
         }
 
         switch(snakeEnemy.currentSpeed)

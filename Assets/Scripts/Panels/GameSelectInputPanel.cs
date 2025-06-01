@@ -29,6 +29,7 @@ public class GameSelectInputPanel : MonoBehaviour
 
         if (gameMode == "PlayerVsCPU")
         {
+            GameResultInfo.IsTwoPlayerMode = false;
             gameModeText.text = "Player vs CPU";
             player2Text.text = "CPU";
             if (inputPlayer2Image != null)
@@ -36,6 +37,7 @@ public class GameSelectInputPanel : MonoBehaviour
         }
         else if (gameMode == "PlayerVsPlayer")
         {
+            GameResultInfo.IsTwoPlayerMode = true;
             gameModeText.text = "Player vs Player";
             player2Text.text = "Player 2";
             if (inputPlayer2Image != null)

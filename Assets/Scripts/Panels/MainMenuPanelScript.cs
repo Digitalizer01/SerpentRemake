@@ -11,6 +11,7 @@ public class MainMenuPanelScript : MonoBehaviour
     public Button mainMenuButton;
     public Button startButton;
     public Button configurationButton;
+    public Button scoresButton;
     public Button quitButton;
 
     void Start()
@@ -48,6 +49,12 @@ public class MainMenuPanelScript : MonoBehaviour
             configurationButton.onClick.AddListener(ConfigureGame);
             AddSoundToButton(configurationButton);
         }
+        if (scoresButton != null)
+        {
+            scoresButton.onClick.RemoveAllListeners();
+            scoresButton.onClick.AddListener(ShowScores);
+            AddSoundToButton(scoresButton);
+        }
     }
 
     private void AddSoundToButton(Button button)
@@ -67,7 +74,6 @@ public class MainMenuPanelScript : MonoBehaviour
             entry.callback.AddListener((eventData) => AudioManager.Instance.PlayCursorSound());
             trigger.triggers.Add(entry);
 
-            // Importante: evita acumulación de click
             button.onClick.RemoveListener(AudioManager.Instance.PlayClickSound);
             button.onClick.AddListener(AudioManager.Instance.PlayClickSound);
         }
@@ -81,6 +87,11 @@ public class MainMenuPanelScript : MonoBehaviour
     public void ConfigureGame()
     {
         PanelManager.Instance.ShowPanel(MenuPanel.Configuration);
+    }
+
+    public void ShowScores()
+    {
+        PanelManager.Instance.ShowPanel(MenuPanel.Scores);
     }
 
     public void StartGame()
