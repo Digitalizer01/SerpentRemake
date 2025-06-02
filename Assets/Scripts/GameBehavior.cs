@@ -702,7 +702,7 @@ public class GameBehavior : MonoBehaviour
             mealPos = Tuple.Create(UnityEngine.Random.Range(1, gridSize - 1), UnityEngine.Random.Range(1, gridSize - 1));
         } while (playerSnake.PartsOfSnake.ContainsKey(mealPos));
 
-        MealType type = (MealType)UnityEngine.Random.Range(0, 1);
+        MealType type = (MealType)UnityEngine.Random.Range(0, 4);
         string spriteName = type switch
         {
             MealType.Normal => "apple",
